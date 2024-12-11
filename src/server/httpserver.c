@@ -56,17 +56,22 @@ void send_response(int *client_fd, struct HttpResponse *res){
 	char* response_buffer = (char*)malloc(sizeof(char) * buffer_sizer + 1);
 
 	if(!response_buffer){
-		printf("\n%s\n", "error response buffer malloc..");
+		printf("\n\n%s\n", "error response buffer malloc..");
+		char server_error[64];
+		snprintf(server_error, sizeof(server_error), "%s %d %s\r\n", res->http_version, 500, "INTERNAL SERVER ERROR");
+		write(*client_fd, server_error, sizeof(server_error));
+		printf("\nrespose\n%s", server_error);
 		return;
 	}
 
 	uint16_t offset = 0;
+
 	/*
-	 * httpVersion status status_messge \r\n
-	 * header_name: header_value \r\n
-	 * header_name: header_value \r\n
-   * header_name: header_value \r\n
+	 * httpVersion status status_message\r\n
+	 * header_name: header_value\r\n
+	 * header_name: header_value\r\n
 	 * ... headers count
+	 * header_name: header_value\r\n
 	 * \r\n
 	 * body
 	 * */
@@ -82,7 +87,7 @@ void send_response(int *client_fd, struct HttpResponse *res){
 	if(res->body){
 		offset += snprintf(response_buffer + offset, buffer_sizer - offset + 1, "%s", res->body);
 	}
-	printf("\r\nresponse\n\nbuffer:%lu offset:%d\n%s",buffer_sizer, offset, response_buffer);
+	printf("\r\nresponse data\nbuffer:%lu offset:%d\n\nresponse\n%s",buffer_sizer, offset, response_buffer);
 
 	write(*client_fd, response_buffer, strlen(response_buffer));
 	free(response_buffer);

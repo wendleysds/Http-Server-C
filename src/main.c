@@ -18,10 +18,6 @@
 #define PORT 3000
 #define REQUEST_BUFFER 2048
 
-#define FILES_ROOT "../wwwroot"
-#define FILES_TEMPLATE "../wwwroot/template"
-#define FILES_STATIC "../wwwroot/static"
-
 struct HttpResponse not_found(){
 	struct HttpResponse res;
 	init_response(&res);
@@ -32,6 +28,23 @@ struct HttpResponse not_found(){
 	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
 	add_header(res.headers, &res.header_count, "Content-Length", "9");
 	res.body = "Not Found";
+
+	return res;
+}
+
+struct HttpResponse server_error(char* message){
+	struct HttpResponse res;
+	init_response(&res);
+
+	char lenght_buffer[32];
+	snprintf(lenght_buffer, sizeof(lenght_buffer), "%lu", strlen(message));
+
+	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
+	res.status_code = 500;
+	snprintf(res.status_message, sizeof(res.status_message), "INTERNAL SERVER ERROR");
+	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
+	add_header(res.headers, &res.header_count, "Content-Length", lenght_buffer);
+	res.body = message;
 
 	return res;
 }
@@ -66,9 +79,9 @@ int main(int argc, char* argv[]){
 	int init_status = init_server(&server, PORT);
 	
 	switch(init_status){
-		case -1: error("socket\n"); break;
-		case -2: error("bind\n"); break;
-		default: printf("server initialized on '%d'\n", PORT); break;
+		case -1: error("Socket error\n"); break;
+		case -2: error("Bind error\n"); break;
+		default: printf("Server initialized on '%d'\n", PORT); break;
 	}
 
 	int client_fd;
@@ -84,12 +97,15 @@ int main(int argc, char* argv[]){
 	printf("\nInorder:\n");
 	inorder(routeRoot);
 
-	printf("\nAlloc dynamic request buffer:\nbuffer size: %d\n", REQUEST_BUFFER + 1);
+	printf("\nAllocating dynamic buffer for requests:\nbuffer size: %d\n", REQUEST_BUFFER + 1);
 	char* request_buffer = (char*)malloc(sizeof(char) * REQUEST_BUFFER + 1);
 	if(!request_buffer){
 		printf("Alloc Failed!");
 		exit(1);
 	}
+
+	struct RouteNode* fidedRouteNode;
+	struct HttpResponse res;
 
 	printf("\nReady for connections\r\n\n");
 	while(true){
@@ -98,19 +114,25 @@ int main(int argc, char* argv[]){
 			exit(1);
 		}	
 		
-		recv(client_fd, request_buffer, REQUEST_BUFFER, 0);
+		int received = recv(client_fd, request_buffer, REQUEST_BUFFER, 0);
+
+		if(received > REQUEST_BUFFER || received < 0){
+			printf("\nInvalid request size:\n");
+			res = server_error("Invalid request size");
+			goto send;
+		}
 
 		parse_request(request_buffer, &req);
 
-		struct RouteNode* fidedRouteNode = search_route(routeRoot, req.path);
-
-		struct HttpResponse res;
+		fidedRouteNode = search_route(routeRoot, req.path);
 
 		if(!fidedRouteNode){
 			res = not_found();
 		}else{
 			res = fidedRouteNode->response();
 		}
+
+send:
 
 		send_response(&client_fd, &res);
 
@@ -120,6 +142,7 @@ int main(int argc, char* argv[]){
 	}
 
 	close(server.socket);
+	free(request_buffer);
 
 	printf("\n\nend of program\n");
 	return 0;

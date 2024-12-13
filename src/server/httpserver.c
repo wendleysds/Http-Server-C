@@ -88,7 +88,7 @@ void send_response(int *client_fd, struct HttpResponse *res){
 	if(res->body){
 		offset += snprintf(response_buffer + offset, buffer_sizer - offset + 1, "%s", res->body);
 	}
-	printf("\r\nresponse offset:%d\n\nresponse\n%s", offset, response_buffer);
+	printf("\r\nresponse\n%s", response_buffer);
 
 	write(*client_fd, response_buffer, strlen(response_buffer));
 	free(response_buffer);

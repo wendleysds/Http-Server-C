@@ -18,7 +18,7 @@
 #define PORT 3000
 #define REQUEST_BUFFER 2048
 
-struct HttpResponse not_found(){
+struct HttpResponse not_found(char** params){
 	struct HttpResponse res;
 	init_response(&res);
 
@@ -49,7 +49,7 @@ struct HttpResponse server_error(char* message){
 	return res;
 }
 
-struct HttpResponse index_page(){
+struct HttpResponse index_page(char** params){
 	struct HttpResponse res;
 	init_response(&res);
 
@@ -61,7 +61,7 @@ struct HttpResponse index_page(){
 	return res;
 }
 
-struct HttpResponse hello(){
+struct HttpResponse hello(char** params){
 	struct HttpResponse res;
 	init_response(&res);
 
@@ -69,6 +69,30 @@ struct HttpResponse hello(){
 	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
 	add_header(res.headers, &res.header_count, "Content-Length", "13");
 	res.body = "Hello, World!";
+
+	return res;
+}
+
+struct HttpResponse echo(char** params){
+	struct HttpResponse res;
+	init_response(&res);
+
+	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
+
+	char body_buffer[1024];
+	int offset = 0;
+
+	for(int i = 1; params[i] != NULL; i++){
+		offset += snprintf(body_buffer, sizeof(body_buffer), "%s\n", params[i]);
+	}
+
+	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
+
+	char content_length[16];
+    snprintf(content_length, sizeof(content_length), "%d", offset - 1);
+    add_header(res.headers, &res.header_count, "Content-Length", content_length);
+
+	res.body = strdup(body_buffer);
 
 	return res;
 }
@@ -90,12 +114,10 @@ int main(int argc, char* argv[]){
 	struct HttpRequest req;
 
 	printf("\nSetting routes\n");
-	struct RouteNode* routeRoot = init_route("/", &index_page);
-	add_route(routeRoot, "/hello", &hello);
+	struct TrieNode* route_root = create_trieNode("");
 
-
-	printf("\nInorder:\n");
-	inorder(routeRoot);
+	add_route(route_root, "/echo/:message", &echo);
+	add_route(route_root, "/hello", &hello);
 
 	printf("\nAllocating dynamic buffer for requests:\nbuffer size: %d\n", REQUEST_BUFFER + 1);
 	char* request_buffer = (char*)malloc(sizeof(char) * REQUEST_BUFFER + 1);
@@ -124,12 +146,13 @@ int main(int argc, char* argv[]){
 
 		parse_request(request_buffer, &req);
 
-		fidedRouteNode = search_route(routeRoot, req.path);
+		char* params[10] = { NULL };
+		struct TrieNode* findedRoute = search_route(route_root, req.path, params);
 
-		if(!fidedRouteNode){
-			res = not_found();
+		if(findedRoute && findedRoute->handler){
+			res = findedRoute->handler(params);
 		}else{
-			res = fidedRouteNode->response();
+			res = not_found(NULL);
 		}
 
 send:

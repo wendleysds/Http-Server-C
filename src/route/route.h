@@ -3,17 +3,15 @@
 
 #include "../http/http.h"
 
-struct RouteNode{
-	char* key;
-	struct HttpResponse (*response)();
-
-	struct RouteNode *left, *right;
+struct TrieNode{
+	char* segment;
+	struct TrieNode *children[26];
+	struct HttpResponse (*handler)(char**);
+	int isDynamic;
 };
 
-struct RouteNode* init_route(char* key, struct HttpResponse (*res)());
-struct RouteNode* add_route(struct RouteNode* root, char* key, struct HttpResponse (*res)());
-struct RouteNode* search_route(struct RouteNode* root, char* key); 
-
-void inorder(struct RouteNode* root);
+struct TrieNode* create_trieNode(char* segment);
+void add_route(struct TrieNode* root, char* path, struct HttpResponse (*handler)(char**));
+struct TrieNode* search_route(struct TrieNode* root, char* path, char** params);
 
 #endif

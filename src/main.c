@@ -82,7 +82,7 @@ struct HttpResponse echo(char** params){
 	char body_buffer[1024];
 	int offset = 0;
 
-	for(int i = 1; params[i] != NULL; i++){
+	for(int i = 0; params[i] != NULL; i++){
 		offset += snprintf(body_buffer, sizeof(body_buffer), "%s\n", params[i]);
 	}
 

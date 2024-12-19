@@ -5,14 +5,12 @@
 
 struct TrieNode{
 	char* segment;
-	struct TrieNode *children[30];
-	int is_route;
+	struct TrieNode *children[26];
 	struct HttpResponse (*handler)(char**);
-
-	struct TrieNode* wildCard; //for dynamic (:);
+	int isDynamic;
 };
 
-struct TrieNode* create_node(char* segment);
+struct TrieNode* create_trieNode(char* segment);
 void add_route(struct TrieNode* root, char* path, struct HttpResponse (*handler)(char**));
 struct TrieNode* search_route(struct TrieNode* root, char* path, char** params);
 

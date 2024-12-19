@@ -4,44 +4,93 @@
 
 #include "route.h"
 
-#define MAX_SEGMENTS 10
+#define SEGMENTS_MAX 10
 
-int split_string(char* str, const char* delim, char** buff){
+int split_string(char* str, const char* delim, char** output){
 	int count = 0;
 
-	char* token = strtok(str, delim);
+	char* buffer = strdup(str);
+	char* token = strtok(buffer, delim);
 	while(token != NULL){
-		buff[count++] = token;
+		output[count++] = strdup(token);
 		token = strtok(NULL, delim);
 	}
 
+	free(buffer);
 	return count;
-
-	
 }
 
-struct TrieNode* create_node(char *segment){
-	struct TrieNode* node = (struct TrieNode*)malloc(sizeof(struct TrieNode));
+struct TrieNode* create_trieNode(char *segment){
+	struct TrieNode* trieNode = (struct TrieNode*)malloc(sizeof(struct TrieNode));
 
-	node->segment = segment;
-	node->is_route = 0;
-	node->handler = NULL;
-	node->wildCard = NULL;
+	trieNode->segment = strdup(segment);
+	trieNode->handler = NULL;
+	trieNode->isDynamic = (segment[0] == ':') ? 1 : 0;	
 
-	for(int i = 0; i < 30; i++){
-		node->children[i] = NULL;
+	for(int i = 0; i < 26; i++){
+		trieNode->children[i] = NULL;
 	}
 
-	return node;
+	return trieNode;
 }
 
 void add_route(struct TrieNode *root, char *path, struct HttpResponse (*handler)(char**)){
-	char* segments[10];
+	char* segments[SEGMENTS_MAX];
+	int segCounter = split_string(path, "/", segments);
 
+	struct TrieNode* current = root;
+	for(int i = 0; i < segCounter; i++){
+		int found = 0;
 
+		for(int j = 0; j < SEGMENTS_MAX; j++){
+			if(current->children[j] && strcmp(current->children[j]->segment, segments[i]) == 0){
+				current = current->children[j];
+				found = 1;
+				break;
+			}
+		}
+
+		if(!found) {
+			for(int j = 0; j < SEGMENTS_MAX; j++){
+				if(!current->children[j]){
+					current->children[j] = create_trieNode(segments[i]);
+					current = current->children[j];
+					break;
+				}
+			}
+		}
+	}
+
+	current->handler = handler;
 }
 
 struct TrieNode* search_route(struct TrieNode *root, char *path, char **params){
-	return NULL;
+	char* segments[SEGMENTS_MAX];
+	int segCounter = split_string(path, "/", segments);
+
+	struct TrieNode* current = root;
+	for(int i = 0; i < segCounter; i++){
+		int found = 0;
+
+		for(int j = 0; j < SEGMENTS_MAX; j++){
+			if(current->children[j] && strcmp(current->children[j]->segment, segments[i]) == 0){
+				current = current->children[j];
+				found = 1;
+				break;
+			}
+			if(current->children[j] && current->children[j]->isDynamic){
+				params[i] = strdup(segments[i]);
+				current = current->children[j];
+				found = 1;
+				break;
+			}
+		}
+
+		if(!found){
+			return NULL;
+		}
+	}
+
+	return current->handler ? current : NULL;
 }
 

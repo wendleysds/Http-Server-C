@@ -68,6 +68,8 @@ struct TrieNode* search_route(struct TrieNode *root, char *path, char **params){
 	char* segments[SEGMENTS_MAX];
 	int segCounter = split_string(path, "/", segments);
 
+	int paramsCount = 0;
+
 	struct TrieNode* current = root;
 	for(int i = 0; i < segCounter; i++){
 		int found = 0;
@@ -79,9 +81,10 @@ struct TrieNode* search_route(struct TrieNode *root, char *path, char **params){
 				break;
 			}
 			if(current->children[j] && current->children[j]->isDynamic){
-				params[i] = strdup(segments[i]);
+				params[paramsCount] = strdup(segments[i]);
 				current = current->children[j];
 				found = 1;
+				paramsCount++;
 				break;
 			}
 		}

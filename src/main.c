@@ -1,14 +1,16 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<sys/socket.h>
-#include<string.h>
-#include<fcntl.h>
-#include<sys/sendfile.h>
-#include<unistd.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
+#include <unistd.h>
 
 #include "route/route.h"
 #include "server/httpserver.h"
 #include "http/http.h"
+#include "utils/fileHandler.h"
 
 #define true 1
 
@@ -49,15 +51,29 @@ struct HttpResponse server_error(char* message){
 	return res;
 }
 
+struct HttpResponse get_static_files(char** params){
+	struct HttpResponse res;
+	init_response(&res);
+	return res;
+}
+
 struct HttpResponse index_page(char** params){
 	struct HttpResponse res;
 	init_response(&res);
 
-	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
-	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
-	add_header(res.headers, &res.header_count, "Content-Length", "10");
-	res.body = "Index Page";
+	char* fileContent = file_content("template/index.html");
+	if(!fileContent){
+		return server_error("file not found");
+	}
 
+	char content_length[16];
+	snprintf(content_length, sizeof(content_length), "%lu", strlen(fileContent));
+
+	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
+	add_header(res.headers, &res.header_count, "Content-Type", "text/html");
+	add_header(res.headers, &res.header_count, "Content-Length", content_length);
+	res.body = fileContent;
+	
 	return res;
 }
 
@@ -89,9 +105,9 @@ struct HttpResponse echo(char** params){
 	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
 
 	char content_length[16];
-    snprintf(content_length, sizeof(content_length), "%d", offset - 1);
-    add_header(res.headers, &res.header_count, "Content-Length", content_length);
+  snprintf(content_length, sizeof(content_length), "%d", offset - 1);
 
+  add_header(res.headers, &res.header_count, "Content-Length", content_length);
 	res.body = strdup(body_buffer);
 
 	return res;
@@ -116,6 +132,7 @@ int main(int argc, char* argv[]){
 	printf("\nSetting routes\n");
 	struct TrieNode* route_root = create_trieNode("");
 
+	add_route(route_root, "/", &index_page);
 	add_route(route_root, "/echo/:message", &echo);
 	add_route(route_root, "/hello", &hello);
 

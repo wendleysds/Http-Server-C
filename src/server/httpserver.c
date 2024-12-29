@@ -53,7 +53,6 @@ void send_response(int *client_fd, struct HttpResponse *res){
 	buffer_sizer += 2;
 	buffer_sizer += strlen(res->body);
 
-	printf("\nreponse buffer: %lu\n", buffer_sizer);
 	char* response_buffer = (char*)malloc(sizeof(char) * buffer_sizer + 1);
 
 	if(!response_buffer){
@@ -91,7 +90,13 @@ void send_response(int *client_fd, struct HttpResponse *res){
 	printf("\r\nresponse\n%s", response_buffer);
 
 	write(*client_fd, response_buffer, strlen(response_buffer));
+	
 	free(response_buffer);
 	response_buffer = NULL;
+
+	if(res->dinamicAllocatedBody){
+		free(res->body);
+		res->body = NULL;
+	}
 }
 

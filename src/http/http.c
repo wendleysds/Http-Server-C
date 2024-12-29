@@ -9,6 +9,7 @@ void init_response(struct HttpResponse* res){
 	res->status_code = 200;
 	snprintf(res->status_message, sizeof(res->status_message), "OK");
 	res->header_count = 0;
+	res->dinamicAllocatedBody = 0;
 	res->body = NULL;
 }
 

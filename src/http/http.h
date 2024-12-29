@@ -18,6 +18,7 @@ struct HttpResponse{
 	char status_message[64];
 	struct HttpHeader headers[MAX_HEADERS];
 	uint8_t header_count;
+	int dinamicAllocatedBody;
 	char* body;
 };
 

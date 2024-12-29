@@ -92,6 +92,7 @@ struct HttpResponse get_static_file(char** params){
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 	add_header(res.headers, &res.header_count, "Content-Type", contentType(params[0]));
 	add_header(res.headers, &res.header_count, "Content-Length", content_length);
+	res.dinamicAllocatedBody = 1;
 	res.body = fileContent;
 
 	return res;
@@ -112,6 +113,7 @@ struct HttpResponse index_page(char** params){
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 	add_header(res.headers, &res.header_count, "Content-Type", "text/html");
 	add_header(res.headers, &res.header_count, "Content-Length", content_length);
+	res.dinamicAllocatedBody = 1;
 	res.body = fileContent;
 	
 	return res;
@@ -146,6 +148,7 @@ struct HttpResponse echo(char** params){
   snprintf(content_length, sizeof(content_length), "%d", offset - 1);
 
   add_header(res.headers, &res.header_count, "Content-Length", content_length);
+	res.dinamicAllocatedBody = 1;
 	res.body = strdup(body_buffer);
 
 	return res;
@@ -184,6 +187,7 @@ int main(int argc, char* argv[]){
 
 	struct RouteNode* fidedRouteNode;
 	struct HttpResponse res;
+	char* params[15] = { NULL };
 
 	printf("\nReady for connections\r\n\n");
 	while(true){
@@ -202,7 +206,6 @@ int main(int argc, char* argv[]){
 
 		parse_request(request_buffer, &req);
 
-		char* params[10] = { NULL };
 		struct TrieNode* findedRoute = search_route(route_root, req.path, params);
 
 		if(findedRoute && findedRoute->handler){
@@ -216,6 +219,17 @@ send:
 		send_response(&client_fd, &res);
 
 		memset(request_buffer, 0, REQUEST_BUFFER + 1);
+
+		if(req.body){
+			free(req.body);
+			req.body = NULL;
+		}
+
+		for(int i = 0; params[i]; i++){
+			free(params[i]);
+			params[i] = NULL;
+		}
+
 		close(client_fd);
 		printf("\n\nReady for next connection\r\n");
 	}
@@ -226,4 +240,4 @@ send:
 	printf("\n\nend of program\n");
 	return 0;
 }
-	
+

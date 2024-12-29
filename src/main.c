@@ -1,14 +1,16 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<sys/socket.h>
-#include<string.h>
-#include<fcntl.h>
-#include<sys/sendfile.h>
-#include<unistd.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
+#include <unistd.h>
 
 #include "route/route.h"
 #include "server/httpserver.h"
 #include "http/http.h"
+#include "utils/fileHandler.h"
 
 #define true 1
 
@@ -17,6 +19,8 @@
 
 #define PORT 3000
 #define REQUEST_BUFFER 2048
+
+#define STATIC_FILES_DIR "static/"
 
 struct HttpResponse not_found(char** params){
 	struct HttpResponse res;
@@ -49,15 +53,67 @@ struct HttpResponse server_error(char* message){
 	return res;
 }
 
+char* contentType(char* file){
+	char* token = strtok(file, ".");
+	char* contentType = "text/plain";
+
+	while(token){
+		if(strcmp(token, "js") == 0){
+			contentType = "application/javascript";
+			break;
+		}
+		if(strcmp(token, "css") == 0){
+			contentType = "text/css";
+			break;
+		}
+		token = strtok(NULL, ".");
+	}
+
+	return contentType;
+}
+
+struct HttpResponse get_static_file(char** params){
+
+	char filePath[(strlen(STATIC_FILES_DIR) + strlen(params[0]) + 1)];
+	snprintf(filePath, sizeof(filePath), "%s%s", STATIC_FILES_DIR, params[0]);
+
+	char* fileContent = file_content(filePath);
+
+	if(!fileContent){
+		return not_found(NULL);
+	}
+
+	struct HttpResponse res;
+	init_response(&res);
+	
+	char content_length[20];
+	snprintf(content_length, sizeof(content_length), "%lu", strlen(fileContent));
+
+	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
+	add_header(res.headers, &res.header_count, "Content-Type", contentType(params[0]));
+	add_header(res.headers, &res.header_count, "Content-Length", content_length);
+	res.body = fileContent;
+
+	return res;
+}
+
 struct HttpResponse index_page(char** params){
+	char* fileContent = file_content("template/index.html");
+	if(!fileContent){
+		return server_error("file not found");
+	}
+
 	struct HttpResponse res;
 	init_response(&res);
 
-	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
-	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
-	add_header(res.headers, &res.header_count, "Content-Length", "10");
-	res.body = "Index Page";
+	char content_length[20];
+	snprintf(content_length, sizeof(content_length), "%lu", strlen(fileContent));
 
+	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
+	add_header(res.headers, &res.header_count, "Content-Type", "text/html");
+	add_header(res.headers, &res.header_count, "Content-Length", content_length);
+	res.body = fileContent;
+	
 	return res;
 }
 
@@ -82,16 +138,14 @@ struct HttpResponse echo(char** params){
 	char body_buffer[1024];
 	int offset = 0;
 
-	for(int i = 0; params[i] != NULL; i++){
-		offset += snprintf(body_buffer, sizeof(body_buffer), "%s\n", params[i]);
-	}
+	offset += snprintf(body_buffer, sizeof(body_buffer), "%s\n", params[0]);
 
 	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
 
 	char content_length[16];
-    snprintf(content_length, sizeof(content_length), "%d", offset - 1);
-    add_header(res.headers, &res.header_count, "Content-Length", content_length);
+  snprintf(content_length, sizeof(content_length), "%d", offset - 1);
 
+  add_header(res.headers, &res.header_count, "Content-Length", content_length);
 	res.body = strdup(body_buffer);
 
 	return res;
@@ -116,8 +170,10 @@ int main(int argc, char* argv[]){
 	printf("\nSetting routes\n");
 	struct TrieNode* route_root = create_trieNode("");
 
+	add_route(route_root, "/", &index_page);
 	add_route(route_root, "/echo/:message", &echo);
 	add_route(route_root, "/hello", &hello);
+	add_route(route_root, "/static/:file", &get_static_file);
 
 	printf("\nAllocating dynamic buffer for requests:\nbuffer size: %d\n", REQUEST_BUFFER + 1);
 	char* request_buffer = (char*)malloc(sizeof(char) * REQUEST_BUFFER + 1);

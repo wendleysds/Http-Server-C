@@ -22,32 +22,18 @@
 
 #define STATIC_FILES_DIR "static/"
 
-struct HttpResponse not_found(char** params){
+struct HttpResponse response_contructor(char* message, char* statusMessage, int statusCode){
 	struct HttpResponse res;
 	init_response(&res);
 
-	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
-	res.status_code = 404;
-	snprintf(res.status_message, sizeof(res.status_message), "NOT FOUND");
-	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
-	add_header(res.headers, &res.header_count, "Content-Length", "9");
-	res.body = "Not Found";
-
-	return res;
-}
-
-struct HttpResponse server_error(char* message){
-	struct HttpResponse res;
-	init_response(&res);
-
-	char lenght_buffer[32];
-	snprintf(lenght_buffer, sizeof(lenght_buffer), "%lu", strlen(message));
+	char contentLenght[32];
+	snprintf(contentLenght, sizeof(contentLenght), "%lu", strlen(message));
 
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
-	res.status_code = 500;
-	snprintf(res.status_message, sizeof(res.status_message), "INTERNAL SERVER ERROR");
+	res.status_code = statusCode;
+	snprintf(res.status_message, sizeof(res.status_message), "%s", statusMessage);
 	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
-	add_header(res.headers, &res.header_count, "Content-Length", lenght_buffer);
+	add_header(res.headers, &res.header_count, "Content-Length", contentLenght); 
 	res.body = message;
 
 	return res;
@@ -72,54 +58,54 @@ char* contentType(char* file){
 	return contentType;
 }
 
-struct HttpResponse get_static_file(char** params){
+struct HttpResponse get_static_file(char** params, struct HttpRequest* req){
 
 	char filePath[(strlen(STATIC_FILES_DIR) + strlen(params[0]) + 1)];
 	snprintf(filePath, sizeof(filePath), "%s%s", STATIC_FILES_DIR, params[0]);
 
-	char* fileContent = file_content(filePath);
+	char* file = file_content(filePath);
 
-	if(!fileContent){
-		return not_found(NULL);
+	if(!file){
+		return response_contructor("Not Found", "NOT FOUND", 404);
 	}
 
 	struct HttpResponse res;
 	init_response(&res);
 	
 	char content_length[20];
-	snprintf(content_length, sizeof(content_length), "%lu", strlen(fileContent));
+	snprintf(content_length, sizeof(content_length), "%lu", strlen(file));
 
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 	add_header(res.headers, &res.header_count, "Content-Type", contentType(params[0]));
 	add_header(res.headers, &res.header_count, "Content-Length", content_length);
 	res.dinamicAllocatedBody = 1;
-	res.body = fileContent;
+	res.body = file;
 
 	return res;
 }
 
-struct HttpResponse index_page(char** params){
-	char* fileContent = file_content("template/index.html");
-	if(!fileContent){
-		return server_error("file not found");
+struct HttpResponse index_page(char** params, struct HttpRequest* req){
+	char* file = file_content("template/index.html");
+	if(!file){
+		return response_contructor("file not found", "INTERNAL SERVER ERROR", 500);
 	}
 
 	struct HttpResponse res;
 	init_response(&res);
 
 	char content_length[20];
-	snprintf(content_length, sizeof(content_length), "%lu", strlen(fileContent));
+	snprintf(content_length, sizeof(content_length), "%lu", strlen(file));
 
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 	add_header(res.headers, &res.header_count, "Content-Type", "text/html");
 	add_header(res.headers, &res.header_count, "Content-Length", content_length);
 	res.dinamicAllocatedBody = 1;
-	res.body = fileContent;
+	res.body = file;
 	
 	return res;
 }
 
-struct HttpResponse hello(char** params){
+struct HttpResponse hello(char** params, struct HttpRequest* req){
 	struct HttpResponse res;
 	init_response(&res);
 
@@ -131,7 +117,7 @@ struct HttpResponse hello(char** params){
 	return res;
 }
 
-struct HttpResponse echo(char** params){
+struct HttpResponse echo(char** params, struct HttpRequest* req){
 	struct HttpResponse res;
 	init_response(&res);
 
@@ -154,9 +140,38 @@ struct HttpResponse echo(char** params){
 	return res;
 }
 
+struct HttpResponse post_test(char** params, struct HttpRequest* req){
+	enum HttpMethod method = valuet_method(req->method);
+	struct HttpResponse res;
+
+	if(method != POST){
+		res = response_contructor("Method not allowed", "METHOD NOT ALLOWED", 405);
+		add_header(res.headers, &res.header_count, "Allow", "POST");
+		return res;
+	}
+
+	init_response(&res);
+	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
+
+	if(req->body){
+		char content_length[20];
+		snprintf(content_length, sizeof(content_length), "%lu", strlen(req->body));
+		add_header(res.headers, &res.header_count, "Content-Type", "application/json");
+		add_header(res.headers, &res.header_count, "Content-Length", content_length);
+
+		res.body = req->body;
+
+		return res;
+	}
+
+	add_header(res.headers, &res.header_count, "Content-Length", "0");
+
+	return res;
+}
+
 int main(int argc, char* argv[]){
 	struct Http_Server server;
-	printf("\nInitializing server\n\n");
+	printf("\nInitializing server...\n\n");
 	int init_status = init_server(&server, PORT);
 	
 	switch(init_status){
@@ -170,26 +185,28 @@ int main(int argc, char* argv[]){
 	int addrlen = sizeof(server.server_addr);
 	struct HttpRequest req;
 
-	printf("\nSetting routes\n");
+	printf("\nSetting routes...\n");
 	struct TrieNode* route_root = create_trieNode("");
 
 	add_route(route_root, "/", &index_page);
 	add_route(route_root, "/echo/:message", &echo);
 	add_route(route_root, "/hello", &hello);
 	add_route(route_root, "/static/:file", &get_static_file);
+	add_route(route_root, "/post", &post_test);
 
-	printf("\nAllocating dynamic buffer for requests:\nbuffer size: %d\n", REQUEST_BUFFER + 1);
+	printf("\nAllocating dynamic buffer for requests...\n");
 	char* request_buffer = (char*)malloc(sizeof(char) * REQUEST_BUFFER + 1);
 	if(!request_buffer){
 		printf("Alloc Failed!");
 		exit(1);
 	}
+	printf("\nBuffer size allocated: %d\n", REQUEST_BUFFER + 1);
 
 	struct RouteNode* fidedRouteNode;
 	struct HttpResponse res;
 	char* params[15] = { NULL };
 
-	printf("\nReady for connections\r\n\n");
+	printf("\nReady for connections\r\n");
 	while(true){
 		if((client_fd = accept(server.socket, (struct sockaddr *)&server.server_addr, (socklen_t *)&addrlen)) < 0){
 			printf("\nError accpting connection\n");
@@ -200,7 +217,7 @@ int main(int argc, char* argv[]){
 
 		if(received > REQUEST_BUFFER || received < 0){
 			printf("\nInvalid request size:\n");
-			res = server_error("Invalid request size");
+			res = response_contructor("Invalid request size", "INTERNAL SERVER ERROR", 500);
 			goto send;
 		}
 
@@ -209,9 +226,9 @@ int main(int argc, char* argv[]){
 		struct TrieNode* findedRoute = search_route(route_root, req.path, params);
 
 		if(findedRoute && findedRoute->handler){
-			res = findedRoute->handler(params);
+			res = findedRoute->handler(params, &req);
 		}else{
-			res = not_found(NULL);
+			res = response_contructor("Not Found", "NOT FOUND", 404);
 		}
 
 send:
@@ -219,11 +236,6 @@ send:
 		send_response(&client_fd, &res);
 
 		memset(request_buffer, 0, REQUEST_BUFFER + 1);
-
-		if(req.body){
-			free(req.body);
-			req.body = NULL;
-		}
 
 		for(int i = 0; params[i]; i++){
 			free(params[i]);

@@ -8,7 +8,7 @@ int hash_function(struct HashMap* mp, char* key){
 	int bucketIndex;
 	int sum = 0, factor = 3;
 	
-	for(int i = 0; i < strlen(key); i++){
+	for(size_t i = 0; i < strlen(key); i++){
 		sum = ((sum % mp->capacity) + (((int)key[i]) * factor) % mp->capacity) % mp->capacity;
 		factor = ((factor % __INT16_MAX__) * (31 % __INT16_MAX__)) % __INT16_MAX__;
 	}

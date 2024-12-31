@@ -51,16 +51,19 @@ void send_response(int *client_fd, struct HttpResponse *res){
 		buffer_sizer += (strlen(res->headers[i].name) + 2 + strlen(res->headers[i].value) + 2);
 	}
 	buffer_sizer += 2;
-	buffer_sizer += strlen(res->body);
+
+	if(res->body){
+		buffer_sizer += strlen(res->body);
+	}
 
 	char* response_buffer = (char*)malloc(sizeof(char) * buffer_sizer + 1);
 
 	if(!response_buffer){
-		printf("\n\n%s\n", "malloc failed for 'response_buffer' in httpserver.c");
+		printf("\nmalloc failed for 'response_buffer' in httpserver.c\n");
 		char server_error[64];
 		snprintf(server_error, sizeof(server_error), "%s %d %s\r\n", res->http_version, 500, "INTERNAL SERVER ERROR");
 		write(*client_fd, server_error, sizeof(server_error));
-		printf("\nrespose\n%s", server_error);
+		printf("\nrespose:\n%s", server_error);
 		return;
 	}
 
@@ -87,7 +90,7 @@ void send_response(int *client_fd, struct HttpResponse *res){
 	if(res->body){
 		offset += snprintf(response_buffer + offset, buffer_sizer - offset + 1, "%s", res->body);
 	}
-	printf("\r\nresponse\n%s", response_buffer);
+	printf("\nresponse:\n%s", response_buffer);
 
 	write(*client_fd, response_buffer, strlen(response_buffer));
 	

@@ -29,8 +29,43 @@ void add_header(struct HttpHeader *headers, uint8_t* header_count, const char *n
 	}
 }
 
+enum HttpMethod valuet_method(char *str){
+	if(strcmp(str, "GET") == 0){
+		return GET;
+	}
+	else if(strcmp(str, "POST") == 0){
+		return POST;
+	}
+	else if(strcmp(str, "PUT") == 0){
+		return PUT;
+	}
+	else if(strcmp(str, "DELETE") == 0){
+		return DELETE;
+	}
+	else if(strcmp(str, "PATCH") == 0){
+		return PATCH;
+	}
+	else if(strcmp(str, "TRACE") == 0){
+		return TRACE;
+	}
+	else if(strcmp(str, "OPTIONS") == 0){
+		return OPTIONS;
+	}
+	else{
+		return HEAD;
+	}
+}
+
 void parse_request(char *raw_request, struct HttpRequest *req){
 	init_request(req);
+
+	char* body = strstr(raw_request, "\r\n\r\n");
+
+	if(body){
+		body += 4;
+		*(body - 4) = '\0';
+	}
+
 	char* line = strtok(raw_request, "\r\n");
 	sscanf(line, "%s %s %s", req->method, req->path, req->http_version);
 	while((line = strtok(NULL, "\r\n")) && strlen(line) > 0){
@@ -40,9 +75,7 @@ void parse_request(char *raw_request, struct HttpRequest *req){
 		add_header(req->headers, &req->header_count, header_name, header_value);
 	}
 
-	line = strtok(NULL, "");
-	if(line){
-		req->body = strdup(line);
+	if(body){
+		req->body = body;
 	}
 }
-

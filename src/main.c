@@ -17,7 +17,7 @@
 #define error(msg) \
 	do { printf(msg); exit(1); } while (0)
 
-#define PORT 3000
+#define DEFULT_PORT 3000
 #define REQUEST_BUFFER 2048
 
 #define STATIC_FILES_DIR "static/"
@@ -71,14 +71,14 @@ struct HttpResponse get_static_file(char** params, struct HttpRequest* req){
 
 	struct HttpResponse res;
 	init_response(&res);
-	
+
 	char content_length[20];
 	snprintf(content_length, sizeof(content_length), "%lu", strlen(file));
 
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 	add_header(res.headers, &res.header_count, "Content-Type", contentType(params[0]));
 	add_header(res.headers, &res.header_count, "Content-Length", content_length);
-	res.dinamicAllocatedBody = 1;
+	res.dinamicAllocatedBody = true;
 	res.body = file;
 
 	return res;
@@ -99,7 +99,7 @@ struct HttpResponse index_page(char** params, struct HttpRequest* req){
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 	add_header(res.headers, &res.header_count, "Content-Type", "text/html");
 	add_header(res.headers, &res.header_count, "Content-Length", content_length);
-	res.dinamicAllocatedBody = 1;
+	res.dinamicAllocatedBody = true;
 	res.body = file;
 	
 	return res;
@@ -170,21 +170,33 @@ struct HttpResponse post_test(char** params, struct HttpRequest* req){
 }
 
 int main(int argc, char* argv[]){
+
+	int port;
+
+	if(argc == 2){
+		port = atoi(argv[1]);
+		if(port == 0){
+			port = DEFULT_PORT;
+		}
+	}
+	else{
+		port = DEFULT_PORT;
+	}
+
 	struct Http_Server server;
 	printf("\nInitializing server...\n\n");
-	int init_status = init_server(&server, PORT);
+	int init_status = init_server(&server, port);
 	
 	switch(init_status){
 		case -1: error("Socket error\n"); break;
 		case -2: error("Bind error\n"); break;
-		default: printf("Server initialized on '%d'\n", PORT); break;
+		default: printf("Server initialized on '%d'\n", port); break;
 	}
 
 	int client_fd;
 	
 	int addrlen = sizeof(server.server_addr);
-	struct HttpRequest req;
-
+	
 	printf("\nSetting routes...\n");
 	struct TrieNode* route_root = create_trieNode("");
 
@@ -204,6 +216,7 @@ int main(int argc, char* argv[]){
 
 	struct RouteNode* fidedRouteNode;
 	struct HttpResponse res;
+	struct HttpRequest req;
 	char* params[15] = { NULL };
 
 	printf("\nReady for connections\r\n");
@@ -243,7 +256,7 @@ send:
 		}
 
 		close(client_fd);
-		printf("\n\nReady for next connection\r\n");
+		printf("\n\nReady for next connection...\r\n");
 	}
 
 	close(server.socket);

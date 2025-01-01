@@ -59,7 +59,6 @@ char* contentType(char* file){
 }
 
 struct HttpResponse get_static_file(char** params, struct HttpRequest* req){
-
 	char filePath[(strlen(STATIC_FILES_DIR) + strlen(params[0]) + 1)];
 	snprintf(filePath, sizeof(filePath), "%s%s", STATIC_FILES_DIR, params[0]);
 
@@ -105,14 +104,23 @@ struct HttpResponse index_page(char** params, struct HttpRequest* req){
 	return res;
 }
 
-struct HttpResponse hello(char** params, struct HttpRequest* req){
+struct HttpResponse hello_page(char** params, struct HttpRequest* req){
+	char* file = file_content("template/hello.html");
+	if(!file){
+		return response_contructor("file not found", "INTERNAL SERVER ERROR", 500);
+	}
+
 	struct HttpResponse res;
 	init_response(&res);
 
+	char contentLenght[20];
+	snprintf(contentLenght, sizeof(contentLenght), "%lu", strlen(file));
+
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
-	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
-	add_header(res.headers, &res.header_count, "Content-Length", "13");
-	res.body = "Hello, World!";
+	add_header(res.headers, &res.header_count, "Content-Type", "text/html");
+	add_header(res.headers, &res.header_count, "Content-Length", contentLenght);
+	res.dinamicAllocatedBody = true;
+	res.body = file;
 
 	return res;
 }
@@ -201,20 +209,20 @@ int main(int argc, char* argv[]){
 	struct TrieNode* route_root = create_trieNode("");
 
 	add_route(route_root, "/", &index_page);
-	add_route(route_root, "/echo/:message", &echo);
-	add_route(route_root, "/hello", &hello);
-	add_route(route_root, "/static/:file", &get_static_file);
+	add_route(route_root, "/hello", &hello_page);
 	add_route(route_root, "/post", &post_test);
+	add_route(route_root, "/echo/:message", &echo);
+	add_route(route_root, "/static/js/:file", &get_static_file);
+	add_route(route_root, "/static/css/:file", &get_static_file);
 
 	printf("\nAllocating dynamic buffer for requests...\n");
 	char* request_buffer = (char*)malloc(sizeof(char) * REQUEST_BUFFER + 1);
 	if(!request_buffer){
-		printf("Alloc Failed!");
+		printf("\nAlloc Failed!\n");
 		exit(1);
 	}
 	printf("\nBuffer size allocated: %d\n", REQUEST_BUFFER + 1);
 
-	struct RouteNode* fidedRouteNode;
 	struct HttpResponse res;
 	struct HttpRequest req;
 	char* params[15] = { NULL };

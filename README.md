@@ -12,9 +12,8 @@ A simple light web server implemented in C language.
 
 ## Features:
 - **Modular Responses**: Each response is a method and you can handle every request wharever you like.
-- **Multiples Routes**: You can configure a route wharever you like.
-- **Dinamic Routes**: Support for Dinamic Routes
-    - Add ```:``` to set the route dinamic. Like: ```/users/:id``` you can access in ```char** params``` attribute. **:id** whill be ```params[0]```
+- **Multiples Routes**: You can configure a routes with diferents responses and methods.
+- **Support Dinamic Routes**: Add ```:``` to set the route dinamic: ```/users/:id``` you can access in ```char** params``` attribute. **:id** whill be ```params[0]```
     - default params max: **10**
 - **Secure File Management**: All server files and assests will be in **wwwroot** folder
 

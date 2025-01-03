@@ -34,7 +34,7 @@ char* file_content(char *filepath){
 
 	content = (char*)malloc(sizeof(char) * fileSize + 1);
 	if(!content){
-		perror("\nfile content buffer failed!\n");
+		perror("\nfile content buffer alloc failed!\n");
 		return NULL;
 	}
 

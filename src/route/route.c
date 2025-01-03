@@ -34,7 +34,7 @@ struct TrieNode* create_trieNode(char *segment){
 	return trieNode;
 }
 
-void add_route(struct TrieNode *root, char *path, struct HttpResponse (*handler)(char**)){
+void add_route(struct TrieNode *root, char *path, struct HttpResponse (*handler)(char**, struct HttpRequest*)){
 	char* segments[SEGMENTS_MAX];
 	int segCounter = split_string(path, "/", segments);
 

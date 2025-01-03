@@ -22,12 +22,37 @@
 
 #define STATIC_FILES_DIR "static/"
 
-struct HttpResponse response_contructor(char* message, char* statusMessage, int statusCode){
+char* contentType(char* file){
+	char* token = strtok(file, ".");
+	char* contentType = "text/plain";
+
+	while(token){
+		if(strcmp(token, "js") == 0){
+			contentType = "application/javascript";
+		}
+		if(strcmp(token, "css") == 0){
+			contentType = "text/css";
+		}
+		if(strcmp(token, "html") == 0 || strcmp(token, "htm") == 0){
+			contentType = "text/html";
+		}
+		token = strtok(NULL, ".");
+	}
+
+	return contentType;
+}
+
+
+struct HttpResponse simple_response(char* message, char* statusMessage, int statusCode){
 	struct HttpResponse res;
 	init_response(&res);
 
 	char contentLenght[32];
-	snprintf(contentLenght, sizeof(contentLenght), "%lu", strlen(message));
+	if(message){
+		snprintf(contentLenght, sizeof(contentLenght), "%lu", strlen(message));
+	}else{
+		snprintf(contentLenght, sizeof(contentLenght), "0");
+	}
 
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 	res.status_code = statusCode;
@@ -39,65 +64,53 @@ struct HttpResponse response_contructor(char* message, char* statusMessage, int 
 	return res;
 }
 
-char* contentType(char* file){
-	char* token = strtok(file, ".");
-	char* contentType = "text/plain";
-
-	while(token){
-		if(strcmp(token, "js") == 0){
-			contentType = "application/javascript";
-			break;
-		}
-		if(strcmp(token, "css") == 0){
-			contentType = "text/css";
-			break;
-		}
-		token = strtok(NULL, ".");
-	}
-
-	return contentType;
-}
-
-struct HttpResponse get_static_file(char** params, struct HttpRequest* req){
-	char filePath[(strlen(STATIC_FILES_DIR) + strlen(params[0]) + 1)];
-	snprintf(filePath, sizeof(filePath), "%s%s", STATIC_FILES_DIR, params[0]);
-
+struct HttpResponse file_response(char* filePath){
+	char* fileName = strdup(filePath);
 	char* file = file_content(filePath);
-
 	if(!file){
-		return response_contructor("Not Found", "NOT FOUND", 404);
+		return simple_response(NULL, "NOT FOUND", 404);
 	}
 
 	struct HttpResponse res;
 	init_response(&res);
 
-	char content_length[20];
-	snprintf(content_length, sizeof(content_length), "%lu", strlen(file));
+	char contentLength[20];
+	snprintf(contentLength, sizeof(contentLength), "%lu", strlen(file));
 
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
-	add_header(res.headers, &res.header_count, "Content-Type", contentType(params[0]));
-	add_header(res.headers, &res.header_count, "Content-Length", content_length);
+	add_header(res.headers, &res.header_count, "Content-Type", contentType(fileName));
+	add_header(res.headers, &res.header_count, "Content-Length", contentLength);
 	res.dinamicAllocatedBody = true;
 	res.body = file;
+	
+	free(fileName);
+	fileName = NULL;
 
 	return res;
+}
+
+struct HttpResponse get_static_file(char** params, struct HttpRequest* req){
+	char filePath[(strlen(STATIC_FILES_DIR) + (strlen(params[0]) + 1))];
+	snprintf(filePath, sizeof(filePath), "%s%s", STATIC_FILES_DIR, params[0]);
+
+	return file_response(filePath);
 }
 
 struct HttpResponse index_page(char** params, struct HttpRequest* req){
 	char* file = file_content("template/index.html");
 	if(!file){
-		return response_contructor("file not found", "INTERNAL SERVER ERROR", 500);
+		return simple_response("file not found", "INTERNAL SERVER ERROR", 500);
 	}
 
 	struct HttpResponse res;
 	init_response(&res);
 
-	char content_length[20];
-	snprintf(content_length, sizeof(content_length), "%lu", strlen(file));
+	char contentLength[20];
+	snprintf(contentLength, sizeof(contentLength), "%lu", strlen(file));
 
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 	add_header(res.headers, &res.header_count, "Content-Type", "text/html");
-	add_header(res.headers, &res.header_count, "Content-Length", content_length);
+	add_header(res.headers, &res.header_count, "Content-Length", contentLength);
 	res.dinamicAllocatedBody = true;
 	res.body = file;
 	
@@ -107,7 +120,7 @@ struct HttpResponse index_page(char** params, struct HttpRequest* req){
 struct HttpResponse hello_page(char** params, struct HttpRequest* req){
 	char* file = file_content("template/hello.html");
 	if(!file){
-		return response_contructor("file not found", "INTERNAL SERVER ERROR", 500);
+		return simple_response("file not found", "INTERNAL SERVER ERROR", 500);
 	}
 
 	struct HttpResponse res;
@@ -138,22 +151,22 @@ struct HttpResponse echo(char** params, struct HttpRequest* req){
 
 	add_header(res.headers, &res.header_count, "Content-Type", "text/plain");
 
-	char content_length[16];
-  snprintf(content_length, sizeof(content_length), "%d", offset - 1);
+	char contentLength[32];
+  snprintf(contentLength, sizeof(contentLength), "%d", offset - 1);
 
-  add_header(res.headers, &res.header_count, "Content-Length", content_length);
+  add_header(res.headers, &res.header_count, "Content-Length", contentLength);
 	res.dinamicAllocatedBody = 1;
 	res.body = strdup(body_buffer);
 
 	return res;
 }
 
-struct HttpResponse post_test(char** params, struct HttpRequest* req){
+struct HttpResponse post(char** params, struct HttpRequest* req){
 	enum HttpMethod method = valuet_method(req->method);
 	struct HttpResponse res;
 
 	if(method != POST){
-		res = response_contructor("Method not allowed", "METHOD NOT ALLOWED", 405);
+		res = simple_response("Method not allowed", "METHOD NOT ALLOWED", 405);
 		add_header(res.headers, &res.header_count, "Allow", "POST");
 		return res;
 	}
@@ -162,10 +175,10 @@ struct HttpResponse post_test(char** params, struct HttpRequest* req){
 	snprintf(res.http_version, sizeof(res.http_version), "HTTP/1.1");
 
 	if(req->body){
-		char content_length[20];
-		snprintf(content_length, sizeof(content_length), "%lu", strlen(req->body));
+		char contentLength[20];
+		snprintf(contentLength, sizeof(contentLength), "%lu", strlen(req->body));
 		add_header(res.headers, &res.header_count, "Content-Type", "application/json");
-		add_header(res.headers, &res.header_count, "Content-Length", content_length);
+		add_header(res.headers, &res.header_count, "Content-Length", contentLength);
 
 		res.body = req->body;
 
@@ -210,18 +223,17 @@ int main(int argc, char* argv[]){
 
 	add_route(route_root, "/", &index_page);
 	add_route(route_root, "/hello", &hello_page);
-	add_route(route_root, "/post", &post_test);
+	add_route(route_root, "/post", &post);
 	add_route(route_root, "/echo/:message", &echo);
-	add_route(route_root, "/static/js/:file", &get_static_file);
-	add_route(route_root, "/static/css/:file", &get_static_file);
-
+	add_route(route_root, "/static/:file", &get_static_file);
+	
 	printf("\nAllocating dynamic buffer for requests...\n");
 	char* request_buffer = (char*)malloc(sizeof(char) * REQUEST_BUFFER + 1);
 	if(!request_buffer){
 		printf("\nAlloc Failed!\n");
 		exit(1);
 	}
-	printf("\nBuffer size allocated: %d\n", REQUEST_BUFFER + 1);
+	printf("Buffer size allocated: %d\n", REQUEST_BUFFER + 1);
 
 	struct HttpResponse res;
 	struct HttpRequest req;
@@ -238,7 +250,7 @@ int main(int argc, char* argv[]){
 
 		if(received > REQUEST_BUFFER || received < 0){
 			printf("\nInvalid request size:\n");
-			res = response_contructor("Invalid request size", "INTERNAL SERVER ERROR", 500);
+			res = simple_response("Invalid request size", "INTERNAL SERVER ERROR", 500);
 			goto send;
 		}
 
@@ -249,7 +261,7 @@ int main(int argc, char* argv[]){
 		if(findedRoute && findedRoute->handler){
 			res = findedRoute->handler(params, &req);
 		}else{
-			res = response_contructor("Not Found", "NOT FOUND", 404);
+			res = file_response("template/404.html");
 		}
 
 send:

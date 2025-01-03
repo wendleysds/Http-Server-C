@@ -65,11 +65,12 @@ struct HttpResponse simple_response(char* message, char* statusMessage, int stat
 }
 
 struct HttpResponse file_response(char* filePath){
-	char* fileName = strdup(filePath);
 	char* file = file_content(filePath);
 	if(!file){
 		return simple_response(NULL, "NOT FOUND", 404);
 	}
+
+	char* fileName = strdup(filePath);
 
 	struct HttpResponse res;
 	init_response(&res);

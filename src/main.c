@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sys/sendfile.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "route/route.h"
 #include "server/httpserver.h"
@@ -42,7 +43,6 @@ char* contentType(char* file){
 	return contentType;
 }
 
-
 struct HttpResponse simple_response(char* message, char* statusMessage, int statusCode){
 	struct HttpResponse res;
 	init_response(&res);
@@ -65,11 +65,12 @@ struct HttpResponse simple_response(char* message, char* statusMessage, int stat
 }
 
 struct HttpResponse file_response(char* filePath){
-	char* fileName = strdup(filePath);
 	char* file = file_content(filePath);
 	if(!file){
 		return simple_response(NULL, "NOT FOUND", 404);
 	}
+
+	char* fileName = strdup(filePath);
 
 	struct HttpResponse res;
 	init_response(&res);
@@ -191,7 +192,6 @@ struct HttpResponse post(char** params, struct HttpRequest* req){
 }
 
 int main(int argc, char* argv[]){
-
 	int port;
 
 	if(argc == 2){
@@ -214,6 +214,12 @@ int main(int argc, char* argv[]){
 		default: printf("Server initialized on '%d'\n", port); break;
 	}
 
+	//ignore sigchild
+	struct sigaction sa;
+	sa.sa_handler = SIG_IGN;
+	sa.sa_flags = SA_RESTART | SA_NOCLDWAIT;
+	sigaction(SIGCHLD, &sa, NULL);
+
 	int client_fd;
 	
 	int addrlen = sizeof(server.server_addr);
@@ -235,48 +241,65 @@ int main(int argc, char* argv[]){
 	}
 	printf("Buffer size allocated: %d\n", REQUEST_BUFFER + 1);
 
-	struct HttpResponse res;
-	struct HttpRequest req;
-	char* params[15] = { NULL };
-
 	printf("\nReady for connections\r\n");
 	while(true){
 		if((client_fd = accept(server.socket, (struct sockaddr *)&server.server_addr, (socklen_t *)&addrlen)) < 0){
 			printf("\nError accpting connection\n");
 			exit(1);
 		}	
-		
-		int received = recv(client_fd, request_buffer, REQUEST_BUFFER, 0);
 
-		if(received > REQUEST_BUFFER || received < 0){
-			printf("\nInvalid request size:\n");
-			res = simple_response("Invalid request size", "INTERNAL SERVER ERROR", 500);
-			goto send;
+		pid_t pid = fork();
+
+		if(pid < 0){
+			perror("Fork failed");
+			close(client_fd);
+			continue;
 		}
 
-		parse_request(request_buffer, &req);
+		if(pid == 0){
+			close(server.socket);
 
-		struct TrieNode* findedRoute = search_route(route_root, req.path, params);
+			int received = recv(client_fd, request_buffer, REQUEST_BUFFER, 0);
+			
+			struct HttpResponse res;
 
-		if(findedRoute && findedRoute->handler){
-			res = findedRoute->handler(params, &req);
-		}else{
-			res = file_response("template/404.html");
+			if(received > REQUEST_BUFFER || received < 0){
+				perror("\nInvalid request size:\n");
+				res = simple_response("Invalid request size", "INTERNAL SERVER ERROR", 500);
+				send_response(&client_fd, &res);
+				exit(0);
+			}
+
+			struct HttpRequest req;
+			char* params[10] = { NULL };
+
+			parse_request(request_buffer, &req);
+
+			struct TrieNode* findedRoute = search_route(route_root, req.path, params);
+
+			if(findedRoute && findedRoute->handler){
+				res = findedRoute->handler(params, &req);
+			}else{
+				res = file_response("template/404.html");
+			}
+
+			send_response(&client_fd, &res);
+
+			memset(request_buffer, 0, REQUEST_BUFFER + 1);
+
+			for(int i = 0; params[i]; i++){
+				free(params[1]);
+				params[i] = NULL;
+			}
+
+			close(client_fd);
+			printf("\nHandled request in child process %d\n", getpid());
+
+			exit(0);
 		}
-
-send:
-
-		send_response(&client_fd, &res);
-
-		memset(request_buffer, 0, REQUEST_BUFFER + 1);
-
-		for(int i = 0; params[i]; i++){
-			free(params[i]);
-			params[i] = NULL;
+		else{
+			close(client_fd);
 		}
-
-		close(client_fd);
-		printf("\n\nReady for next connection...\r\n");
 	}
 
 	close(server.socket);

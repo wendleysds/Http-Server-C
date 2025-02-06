@@ -7,11 +7,17 @@
 
 #define FILE_ROOT "./wwwroot/"
 
-char* file_content(char *filepath){
+struct AssetFile* init_assetfile(){
+	struct AssetFile* assetFile = (struct AssetFile*)malloc(sizeof(struct AssetFile));
+	assetFile->file = NULL;
+	assetFile->size = 0;
+	return assetFile;
+}
+
+struct AssetFile* get_file(char *filepath, const char* mode){
 	char fullPath[PATH_MAX];
 	char resolvedPath[PATH_MAX];
 	FILE* file;
-	char* content;
 	size_t fileSize;
 
 	snprintf(fullPath, sizeof(fullPath), "%s%s", FILE_ROOT, filepath);
@@ -20,11 +26,19 @@ char* file_content(char *filepath){
 		printf("resolve path error:\n%s\nfull path:\n%s\n", resolvedPath, fullPath);
 		return NULL;
 	}
-
-	file = fopen(resolvedPath, "r");
+	
+	file = fopen(resolvedPath, mode);
 
 	if(!file){
 		printf("\nfile not found in:\n%s\n", resolvedPath);
+		return NULL;
+	}
+
+	struct AssetFile* assetFile = init_assetfile();
+
+	if(!assetFile){
+		perror("Asset File malloc failed!");
+		fclose(file);
 		return NULL;
 	}
 
@@ -32,17 +46,9 @@ char* file_content(char *filepath){
 	fileSize = ftell(file);
 	rewind(file);
 
-	content = (char*)malloc(sizeof(char) * fileSize + 1);
-	if(!content){
-		perror("\nfile content buffer alloc failed!\n");
-		return NULL;
-	}
+	assetFile->size = fileSize;
+	assetFile->file = file;
 
-	fread(content, 1, fileSize, file);
-	fclose(file);
-
-	content[fileSize] = '\0';
-
-	return content;
+	return assetFile;
 }
 

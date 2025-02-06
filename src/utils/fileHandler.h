@@ -1,6 +1,14 @@
 #ifndef FILE_HANDLER_H
 #define FILE_HANDLER_H
 
-char* file_content(char* path);
+#include <stdio.h>
+
+struct AssetFile{
+	FILE* file;
+	unsigned long size;
+};
+
+struct AssetFile* init_assetfile();
+struct AssetFile* get_file(char* path, const char* mode);
 
 #endif

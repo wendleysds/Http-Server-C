@@ -6,6 +6,13 @@
 #define MAX_HEADERS_VALUE 1024
 
 #include <inttypes.h>
+#include <stdio.h>
+#include "../utils/fileHandler.h"
+
+enum ContentType{
+	FILE_TYPE, // FILE* 
+	STRING_TYPE, // char*
+};
 
 enum HttpMethod {
 	GET = 0,
@@ -16,6 +23,12 @@ enum HttpMethod {
 	TRACE,
 	OPTIONS,
 	HEAD,
+};
+
+struct HttpBody{
+	enum ContentType contentType;
+	void* content;
+	size_t size;
 };
 
 struct HttpHeader{
@@ -29,8 +42,11 @@ struct HttpResponse{
 	char status_message[64];
 	struct HttpHeader headers[MAX_HEADERS];
 	uint8_t header_count;
-	int dinamicAllocatedBody;
-	char* body;
+
+	struct HttpBody body;
+
+	//Flags
+	int freeBodyContent;
 };
 
 struct HttpRequest{
@@ -45,6 +61,7 @@ struct HttpRequest{
 void init_response(struct HttpResponse* res);
 void init_request(struct HttpRequest* req);
 void add_header(struct HttpHeader *headers, uint8_t* header_count, const char *name, const char *value);
+char* get_header_value(struct HttpHeader *headers, uint8_t* header_count, const char* name);
 enum HttpMethod valuet_method(char* str);
 void parse_request(char *raw_request, struct HttpRequest* req);
 

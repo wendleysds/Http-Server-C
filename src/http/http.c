@@ -9,8 +9,12 @@ void init_response(struct HttpResponse* res){
 	res->status_code = 200;
 	snprintf(res->status_message, sizeof(res->status_message), "OK");
 	res->header_count = 0;
-	res->dinamicAllocatedBody = 0;
-	res->body = NULL;
+
+	res->body.contentType = STRING_TYPE;
+	res->body.content = NULL;
+	res->body.size = 0;
+
+	res->freeBodyContent = 0;
 }
 
 void init_request(struct HttpRequest *req){
@@ -27,6 +31,16 @@ void add_header(struct HttpHeader *headers, uint8_t* header_count, const char *n
 		snprintf(headers[*header_count].value, MAX_HEADERS_VALUE, "%s", value);
 		(*header_count)++;
 	}
+}
+
+char* get_header_value(struct HttpHeader *headers, uint8_t *header_count, const char *name){
+	for(uint8_t i = 0; i < *header_count; i++){		
+		if(strcmp(headers[i].name, name) == 0){
+			return headers[i].value;
+		}
+	}
+
+	return NULL;
 }
 
 enum HttpMethod valuet_method(char *str){

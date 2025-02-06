@@ -4,12 +4,14 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/sendfile.h>
 #include <netinet/in.h>
 #include "httpserver.h"
 
 #define BACKLOG_MAX 10
 #define BUFFER_SIZE 1024
 #define RESPONSE_BUFFER_SIZE 4096
+#define CHUNK_SIZE 4096
 
 void close_server(struct Http_Server* http_server){
 	close(http_server->socket);
@@ -38,7 +40,6 @@ int init_server(struct Http_Server* http_server, uint16_t port){
 	return 0;
 }
 
-
 void send_response(int *client_fd, struct HttpResponse *res){
 	size_t buffer_sizer = 0;
 
@@ -52,9 +53,9 @@ void send_response(int *client_fd, struct HttpResponse *res){
 	}
 	buffer_sizer += 2;
 
-	if(res->body){
+	/*if(res->body){
 		buffer_sizer += strlen(res->body);
-	}
+	}*/
 
 	char* response_buffer = (char*)malloc(sizeof(char) * buffer_sizer + 1);
 
@@ -62,8 +63,7 @@ void send_response(int *client_fd, struct HttpResponse *res){
 		printf("\nmalloc failed for 'response_buffer' in httpserver.c\n");
 		char server_error[64];
 		snprintf(server_error, sizeof(server_error), "%s %d %s\r\n", res->http_version, 500, "INTERNAL SERVER ERROR");
-		write(*client_fd, server_error, sizeof(server_error));
-		printf("\nrespose:\n%s", server_error);
+		send(*client_fd, server_error, sizeof(server_error), MSG_NOSIGNAL);
 		return;
 	}
 
@@ -87,19 +87,39 @@ void send_response(int *client_fd, struct HttpResponse *res){
 
 	offset += snprintf(response_buffer + offset, buffer_sizer - offset + 1, "\r\n");
 
-	if(res->body){
+	/*if(res->body){
 		offset += snprintf(response_buffer + offset, buffer_sizer - offset + 1, "%s", res->body);
-	}
-	printf("\nresponse:\n%s", response_buffer);
-
-	write(*client_fd, response_buffer, strlen(response_buffer));
+	}*/
 	
+	//write(*client_fd, response_buffer, strlen(response_buffer));
+	send(*client_fd, response_buffer, strlen(response_buffer), MSG_NOSIGNAL);
+
+	if(res->body.content){
+		char buffer[CHUNK_SIZE];
+		size_t bytesRead;
+
+		if(res->body.contentType == FILE_TYPE){
+			while((bytesRead = fread(buffer, 1, CHUNK_SIZE, (FILE*)res->body.content)) > 0){
+				if(send(*client_fd, buffer, bytesRead, MSG_NOSIGNAL) == -1){
+					perror("Erro ao enviar arquivo");
+					fclose((FILE*)res->body.content);
+					break;
+				}
+			}
+
+			fclose((FILE*)res->body.content);
+		}
+		else{
+			send(*client_fd, (char*)res->body.content, res->body.size, MSG_NOSIGNAL);
+		}
+	}
+
 	free(response_buffer);
 	response_buffer = NULL;
 
-	if(res->dinamicAllocatedBody){
-		free(res->body);
-		res->body = NULL;
+	if(res->freeBodyContent){
+		free(res->body.content);
+		res->body.content = NULL;
 	}
 }
 

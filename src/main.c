@@ -78,7 +78,6 @@ struct HttpResponse simple_response(char* message, char* statusMessage, int stat
 }
 
 struct HttpResponse file_response(char* filePath){
-<<<<<<< HEAD
 	char* mode = "r";
 	char* fileName = strdup(filePath);
 	char* contentType = content_type(fileName, mode); 
@@ -89,14 +88,8 @@ struct HttpResponse file_response(char* filePath){
 	struct AssetFile* assetFile = get_file(filePath, mode);
 
 	if(!assetFile){
-=======
-	char* file = file_content(filePath);
-	if(!file){
->>>>>>> 9e0da3b39aa1321649e881e4f50100794f30f05f
 		return simple_response(NULL, "NOT FOUND", 404);
 	}
-
-	char* fileName = strdup(filePath);
 
 	struct HttpResponse res;
 	init_response(&res);

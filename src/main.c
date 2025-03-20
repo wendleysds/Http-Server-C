@@ -229,7 +229,6 @@ int main(int argc, char* argv[]){
 	add_route(route_root, "/", &index_page);
 	add_route(route_root, "/post", &post);
 	add_route(route_root, "/echo/:message", &echo);
-	add_route(route_root, "/static/:file", &get_static_file);
 
 	printf("\nAllocating '%d' bytes for requests\n", (REQUEST_BUFFER + 1));
 
@@ -251,6 +250,8 @@ int main(int argc, char* argv[]){
 
 		if(pid < 0){
 			perror("Fork failed");
+			struct HttpResponse res = simple_response("Fork Error", "INTERNAL SERVER ERROR", 500);
+			send_response(&client_fd, &res);
 			close(client_fd);
 			continue;
 		}
@@ -258,7 +259,6 @@ int main(int argc, char* argv[]){
 		if(pid == 0){
 			close(server.socket);
 
-			
 			int received = recv(client_fd, request_buffer, REQUEST_BUFFER, 0);
 			
 			struct HttpResponse res;
@@ -271,9 +271,19 @@ int main(int argc, char* argv[]){
 			}
 
 			struct HttpRequest req;
+			parse_request(request_buffer, &req);
 			char* params[10] = { NULL };
 
-			parse_request(request_buffer, &req);
+			if(strncmp(req.path + 1, STATIC_FILES_DIR, strlen(STATIC_FILES_DIR)) == 0){
+				char* file = req.path + 1 + strlen(STATIC_FILES_DIR);
+				if(strlen(file) <= 0){
+					res = not_found();
+					goto send;
+				}
+				params[0] = strdup(file);
+				res = get_static_file(params, &req);
+				goto send;
+			}
 
 			struct TrieNode* findedRoute = search_route(route_root, req.path, params);
 
@@ -283,6 +293,7 @@ int main(int argc, char* argv[]){
 				res = not_found();
 			}
 
+send:
 			send_response(&client_fd, &res);
 
 			free(request_buffer);
